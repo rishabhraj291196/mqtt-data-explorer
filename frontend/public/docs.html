@@ -1,0 +1,1530 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>JSON Reference · MQTT Device Simulator</title>
+<link rel="icon" href="/favicon.svg" />
+<script>
+  // Match whatever theme the simulator UI is on (same localStorage key).
+  (function () {
+    try {
+      var stored = localStorage.getItem('theme');
+      if (stored !== 'light' && stored !== 'dark') {
+        stored = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+      }
+      document.documentElement.setAttribute('data-theme', stored);
+    } catch (e) { /* private mode — fall back to the media query */ }
+  })();
+</script>
+<style>
+  *, *::before, *::after { box-sizing: border-box; }
+  * { margin: 0; padding: 0; }
+  html { -webkit-text-size-adjust: 100%; }
+  button, input { font: inherit; color: inherit; }
+  svg { display: block; }
+
+  :root {
+    --ground: #e7ecee;
+    --surface: #fbfdfd;
+    --surface-2: #eff4f5;
+    --line: #ccd8dc;
+    --line-soft: #dde6e8;
+    --ink: #0c1418;
+    --ink-2: #2f434b;
+    --muted: #647981;
+    --accent: #0a7183;
+    --accent-ink: #075c6b;
+    --accent-soft: rgba(10, 113, 131, 0.10);
+    --t-num: #0a7183;
+    --t-str: #5a54a8;
+    --t-bool: #8a5a12;
+    --c-key: #1c5f7a;
+    --c-tok: #0a7183;
+    --c-num: #7a4a12;
+    --shadow: 0 1px 2px rgba(12, 20, 24, 0.05), 0 8px 24px -16px rgba(12, 20, 24, 0.30);
+
+    --mono: ui-monospace, "Cascadia Mono", "JetBrains Mono", "SF Mono", Menlo, Consolas, monospace;
+    --sans: ui-sans-serif, "Segoe UI Variable Text", "Segoe UI", system-ui, -apple-system, "Helvetica Neue", sans-serif;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --ground: #0c1216;
+      --surface: #131b20;
+      --surface-2: #18232a;
+      --line: #27353c;
+      --line-soft: #1e2b32;
+      --ink: #e6eef1;
+      --ink-2: #b6c6cc;
+      --muted: #8298a1;
+      --accent: #3fbdd0;
+      --accent-ink: #6fd6e4;
+      --accent-soft: rgba(63, 189, 208, 0.12);
+      --t-num: #3fbdd0;
+      --t-str: #a79ff0;
+      --t-bool: #dda35a;
+      --c-key: #7cc4dd;
+      --c-tok: #4fd0e0;
+      --c-num: #e0aa72;
+      --shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 10px 30px -20px rgba(0, 0, 0, 0.9);
+    }
+  }
+
+  :root[data-theme="dark"] {
+    --ground: #0c1216;
+    --surface: #131b20;
+    --surface-2: #18232a;
+    --line: #27353c;
+    --line-soft: #1e2b32;
+    --ink: #e6eef1;
+    --ink-2: #b6c6cc;
+    --muted: #8298a1;
+    --accent: #3fbdd0;
+    --accent-ink: #6fd6e4;
+    --accent-soft: rgba(63, 189, 208, 0.12);
+    --t-num: #3fbdd0;
+    --t-str: #a79ff0;
+    --t-bool: #dda35a;
+    --c-key: #7cc4dd;
+    --c-tok: #4fd0e0;
+    --c-num: #e0aa72;
+    --shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 10px 30px -20px rgba(0, 0, 0, 0.9);
+  }
+
+  :root[data-theme="light"] {
+    --ground: #e7ecee;
+    --surface: #fbfdfd;
+    --surface-2: #eff4f5;
+    --line: #ccd8dc;
+    --line-soft: #dde6e8;
+    --ink: #0c1418;
+    --ink-2: #2f434b;
+    --muted: #647981;
+    --accent: #0a7183;
+    --accent-ink: #075c6b;
+    --accent-soft: rgba(10, 113, 131, 0.10);
+    --t-num: #0a7183;
+    --t-str: #5a54a8;
+    --t-bool: #8a5a12;
+    --c-key: #1c5f7a;
+    --c-tok: #0a7183;
+    --c-num: #7a4a12;
+    --shadow: 0 1px 2px rgba(12, 20, 24, 0.05), 0 8px 24px -16px rgba(12, 20, 24, 0.30);
+  }
+
+  body {
+    background: var(--ground);
+    color: var(--ink);
+    font-family: var(--sans);
+    font-size: 16px;
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .wrap {
+    max-width: 1180px;
+    margin: 0 auto;
+    padding: 0 20px 96px;
+  }
+
+  a { color: var(--accent-ink); }
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 3px; }
+
+  /* ---------- top bar ---------- */
+  .topbar {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding: 14px 0;
+    border-bottom: 1px solid var(--line-soft);
+    font-family: var(--mono);
+    font-size: 12px;
+  }
+  .topbar a, .topbar button {
+    color: var(--muted);
+    text-decoration: none;
+    background: none;
+    border: none;
+    cursor: pointer;
+    letter-spacing: 0.04em;
+  }
+  .topbar a:hover, .topbar button:hover { color: var(--accent-ink); }
+  .topbar .spacer { margin-left: auto; }
+
+  /* ---------- masthead ---------- */
+  .masthead {
+    padding: 48px 0 28px;
+    border-bottom: 1px solid var(--line);
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+  .eyebrow {
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+  h1 {
+    font-family: var(--mono);
+    font-size: clamp(28px, 4.2vw, 42px);
+    font-weight: 600;
+    letter-spacing: -0.02em;
+    line-height: 1.12;
+    text-wrap: balance;
+  }
+  h1 .brace { color: var(--accent); }
+  .lede {
+    max-width: 66ch;
+    color: var(--ink-2);
+    font-size: 17px;
+  }
+  .sources {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 4px;
+  }
+  .src {
+    font-family: var(--mono);
+    font-size: 11.5px;
+    color: var(--muted);
+    background: var(--surface-2);
+    border: 1px solid var(--line-soft);
+    border-radius: 4px;
+    padding: 3px 8px;
+  }
+
+  /* ---------- layout ---------- */
+  .cols {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 40px;
+    padding-top: 36px;
+    align-items: start;
+  }
+  @media (min-width: 1020px) {
+    .cols { grid-template-columns: 236px minmax(0, 1fr); gap: 56px; }
+    .rail { position: sticky; top: 24px; max-height: calc(100vh - 48px); overflow-y: auto; }
+  }
+
+  .rail { display: flex; flex-direction: column; gap: 22px; font-size: 14px; }
+  .rail-group { display: flex; flex-direction: column; gap: 6px; }
+  .rail-title {
+    font-family: var(--mono);
+    font-size: 10.5px;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--muted);
+    padding-bottom: 4px;
+  }
+  .rail a {
+    color: var(--ink-2);
+    text-decoration: none;
+    padding: 2px 0 2px 10px;
+    border-left: 2px solid transparent;
+    margin-left: -12px;
+  }
+  .rail a:hover { color: var(--accent-ink); border-left-color: var(--accent); }
+
+  .search {
+    width: 100%;
+    font-family: var(--mono);
+    font-size: 13px;
+    color: var(--ink);
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    padding: 9px 11px;
+  }
+  .search::placeholder { color: var(--muted); }
+  .search-note { font-family: var(--mono); font-size: 11px; color: var(--muted); margin-top: 6px; }
+
+  main { display: flex; flex-direction: column; gap: 56px; min-width: 0; }
+  section { display: flex; flex-direction: column; gap: 18px; scroll-margin-top: 24px; }
+
+  h2 {
+    font-family: var(--mono);
+    font-size: 20px;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+    padding-bottom: 10px;
+    border-bottom: 1px solid var(--line);
+  }
+  h2 .n {
+    color: var(--accent);
+    font-weight: 400;
+    margin-right: 10px;
+  }
+  h3 {
+    font-family: var(--mono);
+    font-size: 13px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-top: 10px;
+  }
+  p { max-width: 72ch; color: var(--ink-2); }
+  strong { color: var(--ink); font-weight: 600; }
+
+  code {
+    font-family: var(--mono);
+    font-size: 0.88em;
+    background: var(--accent-soft);
+    color: var(--accent-ink);
+    padding: 1px 5px;
+    border-radius: 4px;
+  }
+
+  /* ---------- rules ---------- */
+  .rules { display: flex; flex-direction: column; border-top: 1px solid var(--line-soft); }
+  .rule {
+    display: grid;
+    grid-template-columns: 28px minmax(0, 1fr);
+    gap: 14px;
+    padding: 14px 0;
+    border-bottom: 1px solid var(--line-soft);
+  }
+  .rule .mark {
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--accent);
+    padding-top: 3px;
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* ---------- code blocks ---------- */
+  .code {
+    font-family: var(--mono);
+    font-size: 13px;
+    line-height: 1.65;
+    background: var(--surface-2);
+    border: 1px solid var(--line-soft);
+    border-radius: 7px;
+    padding: 14px 16px;
+    overflow-x: auto;
+    white-space: pre;
+    color: var(--ink);
+    tab-size: 2;
+  }
+  .t-key { color: var(--c-key); }
+  .t-tok { color: var(--c-tok); font-weight: 600; }
+  .t-num { color: var(--c-num); font-variant-numeric: tabular-nums; }
+  .t-cmt { color: var(--muted); font-style: italic; }
+
+  .block { position: relative; display: flex; flex-direction: column; }
+  .copy {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    font-family: var(--mono);
+    font-size: 10.5px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--muted);
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 4px;
+    padding: 4px 8px;
+    cursor: pointer;
+    opacity: 0;
+    transition: opacity 0.12s ease;
+  }
+  .block:hover .copy, .copy:focus-visible { opacity: 1; }
+  .copy:hover { color: var(--accent-ink); border-color: var(--accent); }
+
+  .pair {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 10px;
+  }
+  @media (min-width: 760px) { .pair { grid-template-columns: 1fr 1fr; } }
+  .pair-label {
+    font-family: var(--mono);
+    font-size: 10.5px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 6px;
+  }
+
+  /* ---------- token entries ---------- */
+  .entries { display: flex; flex-direction: column; gap: 14px; }
+  .entry {
+    background: var(--surface);
+    border: 1px solid var(--line-soft);
+    border-radius: 8px;
+    padding: 18px 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    box-shadow: var(--shadow);
+  }
+  .entry-head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 10px 14px;
+  }
+  .sig {
+    font-family: var(--mono);
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--ink);
+    background: none;
+    padding: 0;
+    letter-spacing: -0.01em;
+    word-break: break-word;
+  }
+  .sig i { color: var(--muted); font-style: italic; font-weight: 400; }
+  .sig b { color: var(--accent); font-weight: 600; }
+  .alias {
+    font-family: var(--mono);
+    font-size: 11.5px;
+    color: var(--muted);
+  }
+  .chip {
+    font-family: var(--mono);
+    font-size: 10.5px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    border-radius: 999px;
+    padding: 2px 9px;
+    border: 1px solid currentColor;
+    margin-left: auto;
+    white-space: nowrap;
+  }
+  .c-num { color: var(--t-num); }
+  .c-str { color: var(--t-str); }
+  .c-bool { color: var(--t-bool); }
+
+  .matlab { color: var(--ink); }
+  .matlab b {
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--accent);
+    margin-right: 8px;
+    font-weight: 500;
+  }
+  .desc { font-size: 15px; }
+
+  .args {
+    display: flex;
+    flex-direction: column;
+    border-top: 1px solid var(--line-soft);
+    margin: 2px 0;
+  }
+  .args > div {
+    display: grid;
+    grid-template-columns: 130px minmax(0, 1fr);
+    gap: 12px;
+    padding: 7px 0;
+    border-bottom: 1px solid var(--line-soft);
+    font-size: 14px;
+  }
+  @media (max-width: 560px) { .args > div { grid-template-columns: minmax(0, 1fr); gap: 2px; } }
+  .args dt { font-family: var(--mono); font-size: 12.5px; color: var(--ink); padding-top: 1px; }
+  .args dd { color: var(--ink-2); }
+
+  .note {
+    font-size: 14px;
+    color: var(--muted);
+    border-left: 2px solid var(--line);
+    padding-left: 12px;
+  }
+  .warn { border-left-color: var(--accent); color: var(--ink-2); }
+
+  /* ---------- tables ---------- */
+  .table-wrap { overflow-x: auto; border: 1px solid var(--line-soft); border-radius: 8px; background: var(--surface); }
+  table { border-collapse: collapse; width: 100%; font-size: 14px; min-width: 760px; }
+  th, td { text-align: left; padding: 11px 14px; border-bottom: 1px solid var(--line-soft); vertical-align: top; }
+  th {
+    font-family: var(--mono);
+    font-size: 10.5px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--muted);
+    font-weight: 500;
+    background: var(--surface-2);
+    white-space: nowrap;
+  }
+  tbody tr:last-child td { border-bottom: none; }
+  td.f { font-family: var(--mono); font-size: 12.5px; color: var(--ink); white-space: nowrap; }
+  td.t { font-family: var(--mono); font-size: 12px; color: var(--muted); white-space: nowrap; }
+  td.d { font-family: var(--mono); font-size: 12px; color: var(--ink-2); white-space: nowrap; font-variant-numeric: tabular-nums; }
+  .req { color: var(--accent); font-family: var(--mono); font-size: 11px; }
+  tr.sub td.f { padding-left: 30px; }
+
+  footer {
+    margin-top: 72px;
+    padding-top: 20px;
+    border-top: 1px solid var(--line);
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--muted);
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px 18px;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    * { transition: none !important; animation: none !important; }
+  }
+</style>
+</head>
+<body>
+
+<div class="wrap">
+
+  <div class="topbar">
+    <a href="/">&larr; Simulator</a>
+    <span class="spacer"></span>
+    <button id="tt" type="button">Theme</button>
+  </div>
+
+  <header class="masthead">
+    <div class="eyebrow">MQTT Device Simulator &middot; Payload &amp; config reference</div>
+    <h1><span class="brace">{{</span>token<span class="brace">}}</span> reference &mdash; har variable ka matlab</h1>
+    <p class="lede">
+      Ye page batata hai ki payload JSON me likha har <code>{{token}}</code> kya karta hai, uske
+      arguments kya hain, default kya hai, aur broker par actually kya publish hota hai. Neeche
+      <code>machines.json</code> ke har config field ka matlab bhi hai &mdash; agli baar naya JSON likhte
+      waqt yahi page kholna kaafi hai.
+    </p>
+    <div class="sources">
+      <span class="src">backend/src/core/payload.generator.ts</span>
+      <span class="src">backend/src/machines/machine.types.ts</span>
+      <span class="src">backend/src/machines/dto/machine.dto.ts</span>
+      <span class="src">backend/data/machines.json</span>
+    </div>
+  </header>
+
+  <div class="cols">
+
+    <nav class="rail">
+      <div class="rail-group">
+        <div class="rail-title">Search tokens</div>
+        <input class="search" id="q" type="search" placeholder="walk, counter, time…" aria-label="Search tokens" />
+        <div class="search-note" id="count"></div>
+      </div>
+      <div class="rail-group">
+        <div class="rail-title">Contents</div>
+        <a href="#rules">Template ke rules</a>
+        <a href="#numbers">Numbers &amp; sensors</a>
+        <a href="#counters">Counters &amp; sequences</a>
+        <a href="#choice">Choice &amp; boolean</a>
+        <a href="#time">Time</a>
+        <a href="#identity">Identity</a>
+        <a href="#text">Text &amp; network</a>
+        <a href="#linked">Linked values</a>
+        <a href="#worked">Worked example</a>
+        <a href="#topic">Topic tokens</a>
+        <a href="#config">machines.json fields</a>
+        <a href="#gotchas">Gotchas</a>
+        <a href="#skeleton">Starter skeleton</a>
+      </div>
+    </nav>
+
+    <main>
+
+      <!-- ============ RULES ============ -->
+      <section id="rules">
+        <h2><span class="n">01</span>Template ke rules</h2>
+        <p>
+          Template ek normal JSON hota hai jisme values ki jagah <code>{{token}}</code> likha hota hai.
+          Har publish par engine template ko dobara render karta hai. Sirf ye 6 baatein yaad rakhni hain:
+        </p>
+
+        <div class="rules">
+          <div class="rule">
+            <span class="mark">1</span>
+            <p><strong>Token hamesha quotes ke andar rakho.</strong> <code>"temp": "{{int:1:9}}"</code> &mdash;
+            quotes hatane par template invalid JSON ho jayega aur save hi nahi hoga.</p>
+          </div>
+          <div class="rule">
+            <span class="mark">2</span>
+            <p><strong>Poori value agar ek hi token hai, to real type publish hota hai.</strong>
+            <code>"temp": "{{float:1:2:1}}"</code> broker par <code>"temp": 1.4</code> banta hai &mdash;
+            number, string nahi.</p>
+          </div>
+          <div class="rule">
+            <span class="mark">3</span>
+            <p><strong>Token ke saath koi text mila do to string ban jata hai.</strong>
+            <code>"fw": "2.4.{{int:0:9}}"</code> &rarr; <code>"fw": "2.4.7"</code>.</p>
+          </div>
+          <div class="rule">
+            <span class="mark">4</span>
+            <p><strong>Object ki keys me bhi token chalta hai.</strong>
+            <code>"{{deviceId}}": { … }</code> &mdash; isi tarah payload device ID se keyed banta hai.</p>
+          </div>
+          <div class="rule">
+            <span class="mark">5</span>
+            <p><strong>Galat token chupta nahi.</strong> Jo token engine nahi pehchanta wo jaisa ka taisa
+            publish ho jata hai &mdash; <code>{{temprature}}</code> message me literally dikhega, isliye typo
+            turant pakda jata hai.</p>
+          </div>
+          <div class="rule">
+            <span class="mark">6</span>
+            <p><strong>JSON na ho to raw text publish hota hai.</strong> CSV ya plain value bhi likh sakte
+            ho &mdash; tokens tab bhi replace hote hain, bas type conversion nahi hota.</p>
+          </div>
+        </div>
+
+        <div class="pair">
+          <div>
+            <div class="pair-label">Template</div>
+            <div class="block">
+              <button class="copy" type="button">Copy</button>
+              <pre class="code">{
+  "deviceId": "{{deviceId}}",
+  "temperature": "{{walk:18:42:0.4}}",
+  "state": "{{oneOf:RUNNING|IDLE|FAULT}}",
+  "cycle": "{{counter}}",
+  "online": "{{bool:0.95}}",
+  "timestamp": "{{iso}}"
+}</pre>
+            </div>
+          </div>
+          <div>
+            <div class="pair-label">Broker par publish</div>
+            <pre class="code">{
+  "deviceId": "5985623058",
+  "temperature": 24.317,
+  "state": "RUNNING",
+  "cycle": 1,
+  "online": true,
+  "timestamp": "2026-08-03T10:15:30.123Z"
+}</pre>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============ NUMBERS ============ -->
+      <section id="numbers">
+        <h2><span class="n">02</span>Numbers &amp; sensors</h2>
+        <p>Ye chaar tokens 90% sensor payloads cover kar dete hain. Farq sirf itna hai ki value
+        <em>kaise</em> badalti hai &mdash; jump, drift, ya wave.</p>
+
+        <div class="entries">
+
+          <article class="entry" data-k="int integer random whole number poora">
+            <div class="entry-head">
+              <code class="sig">{{int:<i>min</i>:<i>max</i>}}</code>
+              <span class="alias">alias: {{integer}}</span>
+              <span class="chip c-num">number</span>
+            </div>
+            <p class="matlab"><b>Matlab</b>min aur max ke beech ek random poora number, har message par naya.</p>
+            <p class="desc">Do messages ke beech koi rishta nahi &mdash; value poore range me kahin bhi kood
+            sakti hai. RSSI, battery %, count jaise fields ke liye theek, temperature jaise smooth
+            sensor ke liye <code>{{walk}}</code> behtar hai.</p>
+            <dl class="args">
+              <div><dt>min</dt><dd>Lower bound (included). Default <code>0</code>.</dd></div>
+              <div><dt>max</dt><dd>Upper bound (included). Default <code>100</code>. Negative bhi chalta hai.</dd></div>
+            </dl>
+            <pre class="code">"battery": "{{int:40:100}}"      →   "battery": 87
+"rssi": "{{int:-95:-40}}"        →   "rssi": -71</pre>
+          </article>
+
+          <article class="entry" data-k="float number decimal random dashamlav">
+            <div class="entry-head">
+              <code class="sig">{{float:<i>min</i>:<i>max</i>:<i>decimals</i>}}</code>
+              <span class="alias">alias: {{number}}</span>
+              <span class="chip c-num">number</span>
+            </div>
+            <p class="matlab"><b>Matlab</b>random decimal number, jitne decimal places bolo utne.</p>
+            <p class="desc">Wahi behaviour jo <code>{{int}}</code> ka hai, bas rounding aap control karte
+            ho. Power factor, flow rate, pressure jaise readings ke liye.</p>
+            <dl class="args">
+              <div><dt>min</dt><dd>Lower bound. Default <code>0</code>.</dd></div>
+              <div><dt>max</dt><dd>Upper bound. Default <code>100</code>.</dd></div>
+              <div><dt>decimals</dt><dd>Kitne decimal places. Default <code>2</code>, allowed 0&ndash;10.</dd></div>
+            </dl>
+            <pre class="code">"powerFactor": "{{float:0.82:0.99:2}}"   →   "powerFactor": 0.94
+"flowLpm": "{{float:0:120:1}}"           →   "flowLpm": 73.4</pre>
+          </article>
+
+          <article class="entry" data-k="walk drift smooth sensor random walk previous">
+            <div class="entry-head">
+              <code class="sig">{{walk:<i>min</i>:<i>max</i>:<i>maxStep</i>}}</code>
+              <span class="chip c-num">number</span>
+            </div>
+            <p class="matlab"><b>Matlab</b>pichli value yaad rakh ke thoda sa upar-neeche &mdash; asli sensor jaisa smooth drift.</p>
+            <p class="desc">Sabse zyada kaam ka token. Har message par value pichli value se
+            <code>±maxStep</code> ke andar hilti hai aur <code>min</code>/<code>max</code> par clamp ho
+            jati hai &mdash; isliye graph jhatke ke bajaye smooth curve banata hai. Pehli value range ke andar
+            random hoti hai. Output 3 decimal tak round hota hai.</p>
+            <dl class="args">
+              <div><dt>min</dt><dd>Value kabhi isse neeche nahi jayegi. Default <code>0</code>.</dd></div>
+              <div><dt>max</dt><dd>Value kabhi isse upar nahi jayegi. Default <code>100</code>.</dd></div>
+              <div><dt>maxStep</dt><dd>Ek message me zyada se zyada kitna hil sakti hai. Default
+              <code>(max &minus; min) / 20</code>. Chhota step = dheema, realistic drift.</dd></div>
+            </dl>
+            <pre class="code">"temperature": "{{walk:18:42:0.4}}"   →   24.317, 24.62, 24.284, 24.51 …</pre>
+            <p class="note">Yaad rakhna state ka: har machine + har field ka apna alag drift chalta hai.
+            Machine <strong>Start</strong> ya <strong>Restart</strong> karne par state clear ho jati hai
+            aur value dobara random point se shuru hoti hai.</p>
+          </article>
+
+          <article class="entry" data-k="sin sine wave cycle period lehar">
+            <div class="entry-head">
+              <code class="sig">{{sin:<i>min</i>:<i>max</i>:<i>periodSeconds</i>}}</code>
+              <span class="chip c-num">number</span>
+            </div>
+            <p class="matlab"><b>Matlab</b>min&ndash;max ke beech ghoomti hui sine wave, fixed time cycle ke saath.</p>
+            <p class="desc">Predictable, repeat hone wala pattern &mdash; day/night cycle, motor vibration,
+            heating-cooling loop dikhane ke liye. Value ghadi ke hisaab se chalti hai, message count ke
+            hisaab se nahi, isliye interval badalne par shape wahi rehta hai.</p>
+            <dl class="args">
+              <div><dt>min</dt><dd>Wave ka lowest point. Default <code>0</code>.</dd></div>
+              <div><dt>max</dt><dd>Wave ka highest point. Default <code>100</code>.</dd></div>
+              <div><dt>periodSeconds</dt><dd>Ek poora cycle kitne second me. Default <code>60</code>.</dd></div>
+            </dl>
+            <pre class="code">"toolTemp": "{{sin:35:85:120}}"   →   2 minute me 35 → 85 → 35 ka smooth cycle</pre>
+            <p class="note">Ye ekmatra number token hai jo Restart par reset nahi hota &mdash; wall clock se
+            chalta hai, isliye saari machines ki wave ek hi phase par hoti hai.</p>
+          </article>
+
+        </div>
+      </section>
+
+      <!-- ============ COUNTERS ============ -->
+      <section id="counters">
+        <h2><span class="n">03</span>Counters &amp; sequences</h2>
+        <p>Ye tokens run ke dauraan apni jagah yaad rakhte hain &mdash; energy meter ka total, cycle count,
+        ya ON/OFF ka fixed pattern.</p>
+
+        <div class="entries">
+
+          <article class="entry" data-k="counter inc increment sequence number badhta">
+            <div class="entry-head">
+              <code class="sig">{{counter}}</code> <code class="sig">{{counter:<i>start</i>:<i>step</i>}}</code>
+              <span class="alias">alias: {{inc}}</span>
+              <span class="chip c-num">number</span>
+            </div>
+            <p class="matlab"><b>Matlab</b>har message par badhta hua number &mdash; kabhi peeche nahi jata.</p>
+            <p class="desc">Pehla message <code>start</code> bhejta hai, uske baad har message par
+            <code>step</code> add hota hai. Sequence numbers, kWh totals, uptime seconds ke liye.</p>
+            <dl class="args">
+              <div><dt>start</dt><dd>Pehli value. Default <code>1</code>.</dd></div>
+              <div><dt>step</dt><dd>Har message par kitna add ho. Default <code>1</code>. Decimal
+              (<code>0.5</code>) aur negative (<code>-1</code>) dono chalte hain.</dd></div>
+            </dl>
+            <pre class="code">"energyKwh": "{{counter:1000:1}}"   →   1000, 1001, 1002 …
+"uptimeSec": "{{counter:0:10}}"     →   0, 10, 20, 30 …</pre>
+            <p class="note">Stop → Start karne par counter wapas <code>start</code> se shuru hoga. Running
+            machine ki config save karne par bhi wo hot-restart hoti hai, to counter reset ho jata hai.</p>
+          </article>
+
+          <article class="entry" data-k="seq sequence cycle order rotation baari">
+            <div class="entry-head">
+              <code class="sig">{{seq:<i>A</i>|<i>B</i>|<i>C</i>}}</code>
+              <span class="chip c-str">string</span>
+            </div>
+            <p class="matlab"><b>Matlab</b>list ki values baari-baari, usi order me, loop me.</p>
+            <p class="desc">Random nahi &mdash; bilkul predictable rotation. State machine ya duty cycle test
+            karne ke liye jahan aapko pata hona chahiye ki agla value kya aayega. List khatam hote hi
+            shuru se chalu ho jata hai.</p>
+            <dl class="args">
+              <div><dt>A|B|C</dt><dd>Pipe (<code>|</code>) se alag ki hui values. Repeat karke duration
+              badha sakte ho &mdash; <code>ON|ON|OFF</code> matlab 2 message ON, 1 message OFF.</dd></div>
+            </dl>
+            <pre class="code">"pump": "{{seq:ON|ON|OFF}}"   →   "ON", "ON", "OFF", "ON", "ON", "OFF" …</pre>
+            <p class="note warn">Output hamesha <strong>string</strong> hota hai. <code>{{seq:1|2|3}}</code>
+            se <code>"1"</code> publish hoga, <code>1</code> nahi &mdash; number chahiye to
+            <code>{{counter}}</code> ya <code>{{range}}</code> use karo.</p>
+          </article>
+
+        </div>
+      </section>
+
+      <!-- ============ CHOICE ============ -->
+      <section id="choice">
+        <h2><span class="n">04</span>Choice &amp; boolean</h2>
+
+        <div class="entries">
+
+          <article class="entry" data-k="oneof random pick choice status state list">
+            <div class="entry-head">
+              <code class="sig">{{oneOf:<i>A</i>|<i>B</i>|<i>C</i>}}</code>
+              <span class="chip c-str">string</span>
+            </div>
+            <p class="matlab"><b>Matlab</b>list me se koi ek value, har baar random.</p>
+            <p class="desc">Status, fault code, shift name &mdash; jo bhi fixed set me se aata hai. Har option
+            ka chance barabar hota hai; kisi option ko zyada common banana ho to use list me repeat kar do.</p>
+            <dl class="args">
+              <div><dt>A|B|C</dt><dd>Pipe se alag options. Khali list bhejne par <code>""</code> milta hai.</dd></div>
+            </dl>
+            <pre class="code">"state": "{{oneOf:RUNNING|IDLE|FAULT}}"            →   "IDLE"
+"faultCode": "{{oneOf:NONE|NONE|NONE|E102|E415}}"  →   60% chance "NONE"</pre>
+            <p class="note warn">Ye bhi hamesha <strong>string</strong> deta hai &mdash; numbers ke liye
+            <code>{{int}}</code> ya <code>{{range}}</code> chahiye.</p>
+          </article>
+
+          <article class="entry" data-k="bool boolean true false probability chance">
+            <div class="entry-head">
+              <code class="sig">{{bool}}</code> <code class="sig">{{bool:<i>probability</i>}}</code>
+              <span class="chip c-bool">boolean</span>
+            </div>
+            <p class="matlab"><b>Matlab</b>asli <code>true</code> / <code>false</code>, quotes ke bina.</p>
+            <p class="desc">Online flags, ignition, alarms. Probability set karke aap decide karte ho ki
+            kitni baar <code>true</code> aaye &mdash; alarm ko rare rakhna ho to <code>0.05</code>.</p>
+            <dl class="args">
+              <div><dt>probability</dt><dd><code>true</code> aane ka chance, <code>0</code> se
+              <code>1</code>. Default <code>0.5</code>.</dd></div>
+            </dl>
+            <pre class="code">"online": "{{bool:0.95}}"   →   "online": true    (95% messages)
+"alarm": "{{bool:0.05}}"    →   "alarm": false   (95% messages)</pre>
+          </article>
+
+        </div>
+      </section>
+
+      <!-- ============ TIME ============ -->
+      <section id="time">
+        <h2><span class="n">05</span>Time</h2>
+        <p>Har token render hone ke exact moment ka time deta hai. String chahiye ya number &mdash; ye choice
+        aapke consumer par depend karti hai.</p>
+
+        <div class="entries">
+
+          <article class="entry" data-k="iso now timestamp utc time date 8601">
+            <div class="entry-head">
+              <code class="sig">{{iso}}</code>
+              <span class="alias">alias: {{now}}</span>
+              <span class="chip c-str">string</span>
+            </div>
+            <p class="matlab"><b>Matlab</b>ISO-8601 timestamp, UTC me, milliseconds ke saath.</p>
+            <p class="desc">Default choice &mdash; har language isko parse kar leti hai aur timezone ka jhagda
+            nahi hota.</p>
+            <pre class="code">"timestamp": "{{iso}}"   →   "2026-08-03T10:15:30.123Z"</pre>
+          </article>
+
+          <article class="entry" data-k="epoch timestamp milliseconds ms unix number">
+            <div class="entry-head">
+              <code class="sig">{{epoch}}</code>
+              <span class="alias">alias: {{timestamp}}</span>
+              <span class="chip c-num">number</span>
+            </div>
+            <p class="matlab"><b>Matlab</b>1 Jan 1970 se ab tak ke milliseconds, number ke roop me.</p>
+            <p class="desc">JavaScript ka <code>Date.now()</code>. Time-series databases aur charts me
+            seedha chala jata hai.</p>
+            <pre class="code">"ts": "{{epoch}}"   →   "ts": 1785000930123</pre>
+          </article>
+
+          <article class="entry" data-k="unix seconds epoch number time">
+            <div class="entry-head">
+              <code class="sig">{{unix}}</code>
+              <span class="chip c-num">number</span>
+            </div>
+            <p class="matlab"><b>Matlab</b>wahi epoch, par seconds me (milliseconds ke bina).</p>
+            <p class="desc">Purane firmware aur MQTT payload specs aksar seconds expect karte hain.</p>
+            <pre class="code">"ts": "{{unix}}"   →   "ts": 1785000930</pre>
+          </article>
+
+          <article class="entry" data-k="date local yyyy mm dd tareekh">
+            <div class="entry-head">
+              <code class="sig">{{date}}</code>
+              <span class="chip c-str">string</span>
+            </div>
+            <p class="matlab"><b>Matlab</b>local date, <code>YYYY-MM-DD</code> format me.</p>
+            <p class="desc">Server ki local timezone se banta hai (UTC nahi). Human-readable
+            "lastUpdated" fields ke liye.</p>
+            <pre class="code">"day": "{{date}}"   →   "2026-08-03"</pre>
+          </article>
+
+          <article class="entry" data-k="time local hh mm ss clock samay">
+            <div class="entry-head">
+              <code class="sig">{{time}}</code>
+              <span class="chip c-str">string</span>
+            </div>
+            <p class="matlab"><b>Matlab</b>local time, <code>HH:MM:SS</code> (24-hour).</p>
+            <p class="desc">Aksar <code>{{date}}</code> ke saath ek hi string me use hota hai.</p>
+            <pre class="code">"lastUpdated": "{{date}} {{time}}"   →   "2026-08-03 15:42:07"</pre>
+          </article>
+
+        </div>
+      </section>
+
+      <!-- ============ IDENTITY ============ -->
+      <section id="identity">
+        <h2><span class="n">06</span>Identity</h2>
+        <p>Machine ki pehchan. Ek machine ko 50 baar duplicate karne par yahi fields alag hoti hain &mdash;
+        template same rehta hai, identity badal jati hai.</p>
+
+        <div class="entries">
+
+          <article class="entry" data-k="deviceid device id serial identity pehchan">
+            <div class="entry-head">
+              <code class="sig">{{deviceId}}</code>
+              <span class="chip c-str">string</span>
+            </div>
+            <p class="matlab"><b>Matlab</b>machine par set kiya hua device ID &mdash; jo asli device apna serial batata.</p>
+            <p class="desc">Payload aur topic dono me isi ko use karna chahiye. Teen formats hain:
+            <code>numeric</code> (10 digits), <code>alphanumeric</code> (12 characters), ya
+            <code>custom</code> (aapka apna, kabhi regenerate nahi hota). Duplicate karne par har copy ko
+            naya device ID milta hai.</p>
+            <pre class="code">"deviceId": "{{deviceId}}"   →   "5985623058"</pre>
+          </article>
+
+          <article class="entry" data-k="machineid uuid internal id">
+            <div class="entry-head">
+              <code class="sig">{{machineId}}</code>
+              <span class="chip c-str">string</span>
+            </div>
+            <p class="matlab"><b>Matlab</b>simulator ka internal UUID &mdash; <code>machines.json</code> wala <code>id</code>.</p>
+            <p class="desc">Ye API ka identifier hai, device ka nahi. Debugging ke liye theek hai, par
+            device payload me <code>{{deviceId}}</code> zyada sahi lagta hai.</p>
+            <pre class="code">"ref": "{{machineId}}"   →   "d2c5ff1d-1b61-40ea-864f-4db64c2f20ef"</pre>
+          </article>
+
+          <article class="entry" data-k="machinename name label display naam">
+            <div class="entry-head">
+              <code class="sig">{{machineName}}</code>
+              <span class="chip c-str">string</span>
+            </div>
+            <p class="matlab"><b>Matlab</b>machine ka display name jo UI me dikhta hai.</p>
+            <p class="desc">Human-readable label ke liye. Naam me space ya special characters ho sakte
+            hain, isliye topic me daalne se pehle soch lena.</p>
+            <pre class="code">"site": "{{machineName}}"   →   "Airveda"</pre>
+          </article>
+
+          <article class="entry" data-k="tick message number count run sequence">
+            <div class="entry-head">
+              <code class="sig">{{tick}}</code>
+              <span class="chip c-num">number</span>
+            </div>
+            <p class="matlab"><b>Matlab</b>is run ka kaunsa number message hai &mdash; pehla message = 1.</p>
+            <p class="desc"><code>{{counter}}</code> se farq: <code>{{tick}}</code> hamesha 1 se shuru hota
+            hai aur 1-1 karke badhta hai, configure nahi hota. Stop → Start par 1 se dobara.</p>
+            <pre class="code">"seq": "{{tick}}"   →   1, 2, 3, 4 …</pre>
+          </article>
+
+        </div>
+      </section>
+
+      <!-- ============ TEXT ============ -->
+      <section id="text">
+        <h2><span class="n">07</span>Text &amp; network</h2>
+
+        <div class="entries">
+
+          <article class="entry" data-k="uuid guid random unique id v4">
+            <div class="entry-head">
+              <code class="sig">{{uuid}}</code>
+              <span class="chip c-str">string</span>
+            </div>
+            <p class="matlab"><b>Matlab</b>har message par ek naya random UUID v4.</p>
+            <p class="desc">Message ID / correlation ID ke liye. Ye machine ki pehchan nahi hai &mdash; har
+            publish par badal jata hai. Fixed identity chahiye to <code>{{machineId}}</code>.</p>
+            <pre class="code">"msgId": "{{uuid}}"   →   "3f9a02bc-7d41-4e0a-9b2c-88f1d0a6e512"</pre>
+          </article>
+
+          <article class="entry" data-k="str string random letters length text">
+            <div class="entry-head">
+              <code class="sig">{{str:<i>length</i>}}</code>
+              <span class="alias">alias: {{string}}</span>
+              <span class="chip c-str">string</span>
+            </div>
+            <p class="matlab"><b>Matlab</b>random lowercase letters aur digits, jitni length bolo.</p>
+            <dl class="args">
+              <div><dt>length</dt><dd>Kitne characters. Default <code>8</code>, allowed 1&ndash;256.</dd></div>
+            </dl>
+            <pre class="code">"tag": "{{str:6}}"   →   "k4m9x1"</pre>
+          </article>
+
+          <article class="entry" data-k="hex random hexadecimal checksum crc">
+            <div class="entry-head">
+              <code class="sig">{{hex:<i>length</i>}}</code>
+              <span class="chip c-str">string</span>
+            </div>
+            <p class="matlab"><b>Matlab</b>random hex string (0&ndash;9, a&ndash;f) &mdash; fake checksum ya serial ke liye.</p>
+            <dl class="args">
+              <div><dt>length</dt><dd>Kitne characters. Default <code>8</code>, allowed 1&ndash;256.</dd></div>
+            </dl>
+            <pre class="code">"crc": "{{hex:8}}"   →   "3f9a02bc"</pre>
+          </article>
+
+          <article class="entry" data-k="ip ipv4 address network">
+            <div class="entry-head">
+              <code class="sig">{{ip}}</code>
+              <span class="chip c-str">string</span>
+            </div>
+            <p class="matlab"><b>Matlab</b>random private IPv4 address, hamesha <code>10.x.x.x</code> range me.</p>
+            <p class="desc">Aakhri octet 1&ndash;254 rehta hai, to network/broadcast address kabhi nahi banta.</p>
+            <pre class="code">"ip": "{{ip}}"   →   "10.42.7.19"</pre>
+          </article>
+
+          <article class="entry" data-k="mac address hardware ethernet">
+            <div class="entry-head">
+              <code class="sig">{{mac}}</code>
+              <span class="chip c-str">string</span>
+            </div>
+            <p class="matlab"><b>Matlab</b>random MAC address, colon-separated lowercase hex.</p>
+            <pre class="code">"mac": "{{mac}}"   →   "a4:1f:0b:9c:2e:7d"</pre>
+          </article>
+
+          <article class="entry" data-k="lat latitude gps coordinate location">
+            <div class="entry-head">
+              <code class="sig">{{lat}}</code>
+              <span class="chip c-num">number</span>
+            </div>
+            <p class="matlab"><b>Matlab</b>random latitude, &minus;90 se +90, 6 decimal places.</p>
+            <p class="desc">Poori duniya me kahin bhi &mdash; har message par bilkul alag jagah. Vehicle
+            tracking ke liye <code>{{walk}}</code> se ek chhote area me rakho:
+            <code>"lat": "{{walk:28.40:28.75:0.0008}}"</code>.</p>
+            <pre class="code">"lat": "{{lat}}"   →   28.613900</pre>
+          </article>
+
+          <article class="entry" data-k="lng lon longitude gps coordinate location">
+            <div class="entry-head">
+              <code class="sig">{{lng}}</code>
+              <span class="alias">alias: {{lon}}</span>
+              <span class="chip c-num">number</span>
+            </div>
+            <p class="matlab"><b>Matlab</b>random longitude, &minus;180 se +180, 6 decimal places.</p>
+            <pre class="code">"lng": "{{lng}}"   →   77.209000</pre>
+          </article>
+
+        </div>
+      </section>
+
+      <!-- ============ LINKED ============ -->
+      <section id="linked">
+        <h2><span class="n">08</span>Linked values &mdash; <code>var</code> aur <code>range</code></h2>
+        <p>
+          Ye do tokens baaki sab se alag hain: ye <em>naya</em> data nahi banate, balki ek hi generated
+          value ko poore message me share karte hain. Isi se ek battery reading do jagah same aati hai,
+          aur colour apni value se actually match karta hai.
+        </p>
+
+        <div class="entries">
+
+          <article class="entry" data-k="var variable reuse same value share named">
+            <div class="entry-head">
+              <code class="sig">{{var:<i>name</i>:<i>token</i>}}</code>
+              <span class="alias">phir kahin bhi: {{var:<i>name</i>}}</span>
+              <span class="chip c-num">jo token de</span>
+            </div>
+            <p class="matlab"><b>Matlab</b>value ek baar banao, naam do, aur message me jitni baar chaho wahi value use karo.</p>
+            <p class="desc">Pehle form me aap value define karte ho &mdash; <code>name</code> ke baad jo bhi
+            token likha hai wahi generate hota hai. Doosre form me sirf naam likhne se wahi value dobara
+            mil jati hai. Ek message ke andar dono jagah bilkul same number aata hai.</p>
+            <dl class="args">
+              <div><dt>name</dt><dd>Aapka chuna hua label &mdash; <code>batt</code>, <code>aqi</code>, kuch bhi.
+              Sirf usi ek message ke andar valid rehta hai.</dd></div>
+              <div><dt>token</dt><dd>Koi bhi normal token, poore arguments ke saath &mdash;
+              <code>walk:5:100:0.4</code>, <code>int:0:9</code>, wagairah.</dd></div>
+            </dl>
+            <pre class="code">"value": "{{var:batt:walk:5:100:0.4}}"   →   50.776
+"battery": "{{var:batt}}"                →   50.776   <span class="t-cmt">// bilkul wahi value</span></pre>
+            <p class="note"><strong>Order matter nahi karta.</strong> Saare <code>{{var:name:token}}</code>
+            sabse pehle evaluate hote hain, isliye <code>{{var:name}}</code> template me upar bhi likh
+            sakte ho &mdash; jahan value define hui hai uske pehle bhi. Ek hi naam do baar define kiya to
+            aakhri definition jeetti hai.</p>
+          </article>
+
+          <article class="entry" data-k="range bucket color colour label threshold derive limit">
+            <div class="entry-head">
+              <code class="sig">{{range:<i>name</i>:<i>limit</i>=<i>out</i>|<i>limit</i>=<i>out</i>|<b>*</b>=<i>out</i>}}</code>
+              <span class="chip c-str">string / number</span>
+            </div>
+            <p class="matlab"><b>Matlab</b>ek <code>{{var}}</code> ki value dekh kar uske hisaab se colour ya label chuno.</p>
+            <p class="desc">Buckets left se right check hote hain aur <strong>pehla</strong> bucket jeet
+            jata hai jiski limit se value <code>&lt;=</code> hoti hai. <code>*</code> ka matlab "baaki sab"
+            &mdash; usse hamesha aakhir me rakho. Agar output dekhne me number hai to number publish hota hai,
+            warna string.</p>
+            <dl class="args">
+              <div><dt>name</dt><dd>Kisi <code>{{var:name:…}}</code> ka naam. Naam galat hua to
+              <code>""</code> milega.</dd></div>
+              <div><dt>limit=out</dt><dd>Upper bound aur uska output. Limits <strong>chhoti se badi</strong>
+              order me likho, warna pehla hi bucket sab kuch kha jayega.</dd></div>
+              <div><dt>*=out</dt><dd>Fallback &mdash; jab kisi limit me fit na ho.</dd></div>
+            </dl>
+            <pre class="code">"value": "{{var:aqi:walk:20:220:4}}"
+"color": "{{range:aqi:50=#17AF35|100=#74CB40|150=#E1CB43|*=#E14343}}"
+
+aqi = 36    →   "#17AF35"   <span class="t-cmt">// 36 &lt;= 50</span>
+aqi = 118   →   "#E1CB43"   <span class="t-cmt">// 50, 100 fail; 118 &lt;= 150</span>
+aqi = 190   →   "#E14343"   <span class="t-cmt">// kuch match nahi hua → *</span></pre>
+            <p class="note">Sirf colours ke liye nahi &mdash; <code>*=UNKNOWN</code> ke saath status text,
+            severity level, ya <code>0</code>/<code>1</code>/<code>2</code> jaise numeric grades bhi
+            derive kar sakte ho.</p>
+          </article>
+
+        </div>
+      </section>
+
+      <!-- ============ WORKED ============ -->
+      <section id="worked">
+        <h2><span class="n">09</span>Worked example &mdash; Airveda payload</h2>
+        <p>
+          Ye aapki live <code>machines.json</code> wali machine ka template hai, chhota karke. Isme
+          teenon advanced cheezein ek saath hain: token wali object key, readings ka array, aur
+          <code>var</code> + <code>range</code> ki jodi.
+        </p>
+
+        <div class="pair">
+          <div>
+            <div class="pair-label">Template</div>
+            <div class="block">
+              <button class="copy" type="button">Copy</button>
+              <pre class="code">{
+  "{{deviceId}}": {
+    "lastUpdated": "{{date}} {{time}}",
+    "data": [
+      {
+        "type": "aqi",
+        "value": "{{var:aqi:walk:20:220:4}}",
+        "color": "{{range:aqi:50=#17AF35|100=#74CB40|*=#E14343}}",
+        "label": "AQI",
+        "unit": ""
+      },
+      {
+        "type": "battery",
+        "value": "{{var:batt:walk:5:100:0.4}}",
+        "color": "{{range:batt:20=#E14343|50=#E1CB43|*=#17AF35}}",
+        "label": "Battery",
+        "unit": "%"
+      }
+    ],
+    "battery": "{{var:batt}}"
+  }
+}</pre>
+            </div>
+          </div>
+          <div>
+            <div class="pair-label">Broker par publish</div>
+            <pre class="code">{
+  "5985623058": {
+    "lastUpdated": "2026-08-03 12:43:53",
+    "data": [
+      {
+        "type": "aqi",
+        "value": 36.125,
+        "color": "#17AF35",
+        "label": "AQI",
+        "unit": ""
+      },
+      {
+        "type": "battery",
+        "value": 50.776,
+        "color": "#E14343",
+        "label": "Battery",
+        "unit": "%"
+      }
+    ],
+    "battery": 50.776
+  }
+}</pre>
+          </div>
+        </div>
+
+        <div class="rules">
+          <div class="rule">
+            <span class="mark">&rarr;</span>
+            <p>Top-level key <code>"{{deviceId}}"</code> device ke serial me badal gayi &mdash; poora payload
+            device ID se keyed ho gaya.</p>
+          </div>
+          <div class="rule">
+            <span class="mark">&rarr;</span>
+            <p><code>value</code> par lage <code>{{var:aqi:…}}</code> ne number banaya aur usi ka naam
+            <code>aqi</code> rakh diya; neeche <code>color</code> ne wahi number padh ke bucket chuna.</p>
+          </div>
+          <div class="rule">
+            <span class="mark">&rarr;</span>
+            <p>Array ke andar wali <code>battery.value</code> aur bahar wali <code>"battery"</code> &mdash;
+            dono <code>50.776</code>, kyunki dono ek hi <code>{{var:batt}}</code> se aa rahi hain.
+            Bahar wali line array se <em>neeche</em> hai, par order se koi farq nahi padta.</p>
+          </div>
+          <div class="rule">
+            <span class="mark">&rarr;</span>
+            <p><code>battery</code> ki colour range ulti likhi hai (<code>20=</code>red pehle) kyunki yahan
+            <em>kam</em> value buri hai &mdash; buckets tab bhi chhoti se badi order me hain.</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============ TOPIC ============ -->
+      <section id="topic">
+        <h2><span class="n">10</span>Topic me tokens</h2>
+        <p>
+          Topic bhi ek template hai, bas usme JSON parsing nahi hoti &mdash; sab kuch string ban jata hai.
+          Wahi saare tokens chalte hain.
+        </p>
+        <pre class="code">sensors/{{deviceId}}/telemetry      →   sensors/5985623058/telemetry
+factory/line-1/{{deviceId}}/status  →   factory/line-1/5985623058/status
+device/airVeda/{{machineId}}        →   device/airVeda/d2c5ff1d-1b61-40ea-…</pre>
+        <p class="note">Payload pehle render hota hai, topic baad me &mdash; iska matlab topic me
+        <code>{{var:name}}</code> bhi use kar sakte ho aur usme wahi value aayegi jo abhi message me
+        gayi hai.</p>
+        <p class="note warn">Topic me <code>{{machineName}}</code> se bacho agar naam me space ya
+        <code>#</code>/<code>+</code> ho &mdash; ye MQTT wildcards hain aur subscribers ko confuse karte hain.
+        <code>{{deviceId}}</code> hamesha safe characters hi deta hai.</p>
+      </section>
+
+      <!-- ============ CONFIG ============ -->
+      <section id="config">
+        <h2><span class="n">11</span><code>machines.json</code> ke fields</h2>
+        <p>
+          Har machine isi shape me disk par save hoti hai (<code>backend/data/machines.json</code>) aur
+          isi shape me API leti hai. <span class="req">req</span> matlab create karte waqt zaroori.
+          Limits wahi hain jo backend validate karta hai &mdash; cross karne par API 400 deta hai.
+        </p>
+
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Field</th>
+                <th>Type</th>
+                <th>Default</th>
+                <th>Matlab &amp; limits</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td class="f">id</td>
+                <td class="t">string</td>
+                <td class="d">auto</td>
+                <td>Internal UUID, backend banata hai. Templates me <code>{{machineId}}</code> se milta hai. Kabhi khud mat likhna.</td>
+              </tr>
+              <tr>
+                <td class="f">name <span class="req">req</span></td>
+                <td class="t">string</td>
+                <td class="d">&mdash;</td>
+                <td>UI me dikhne wala naam. Max 80 characters. Client ID bhi isi se auto-generate hota hai.</td>
+              </tr>
+              <tr>
+                <td class="f">description</td>
+                <td class="t">string</td>
+                <td class="d">&mdash;</td>
+                <td>Apne liye note &mdash; "mobilise local" jaisa. Max 300 characters. Publish kahin nahi hota.</td>
+              </tr>
+              <tr>
+                <td class="f">deviceId</td>
+                <td class="t">string</td>
+                <td class="d">auto</td>
+                <td>Device apni jo pehchan batata hai; <code>{{deviceId}}</code> yahi deta hai. Max 64, sirf <code>A&ndash;Z a&ndash;z 0&ndash;9 . _ : -</code> (space allowed nahi).</td>
+              </tr>
+              <tr>
+                <td class="f">deviceIdFormat</td>
+                <td class="t">enum</td>
+                <td class="d">numeric</td>
+                <td><code>numeric</code> = 10 digits &middot; <code>alphanumeric</code> = 12 characters &middot; <code>custom</code> = aapka apna, kabhi regenerate nahi hota.</td>
+              </tr>
+
+              <tr>
+                <td class="f">broker <span class="req">req</span></td>
+                <td class="t">object</td>
+                <td class="d">&mdash;</td>
+                <td>Connection settings &mdash; kahan publish karna hai.</td>
+              </tr>
+              <tr class="sub">
+                <td class="f">broker.url <span class="req">req</span></td>
+                <td class="t">string</td>
+                <td class="d">&mdash;</td>
+                <td>Broker address. Scheme <code>mqtt</code>, <code>mqtts</code>, <code>ws</code>, <code>wss</code>, <code>tcp</code> ya <code>ssl</code> hona chahiye &mdash; jaise <code>mqtt://localhost:1883</code>.</td>
+              </tr>
+              <tr class="sub">
+                <td class="f">broker.username</td>
+                <td class="t">string</td>
+                <td class="d">&mdash;</td>
+                <td>Broker auth username. Max 120. Khali chhodo to bina auth connect hoga.</td>
+              </tr>
+              <tr class="sub">
+                <td class="f">broker.password</td>
+                <td class="t">string</td>
+                <td class="d">&mdash;</td>
+                <td>Broker auth password. Max 200. Plain text me file me save hota hai &mdash; production credentials yahan mat daalo.</td>
+              </tr>
+              <tr class="sub">
+                <td class="f">broker.clientId</td>
+                <td class="t">string</td>
+                <td class="d">auto</td>
+                <td>MQTT client ID. Khali chhodo to <code>&lt;name-slug&gt;-&lt;id ke pehle 8&gt;</code> ban jata hai. Do machines ka same client ID = ek dusre ko disconnect karte rahenge.</td>
+              </tr>
+              <tr class="sub">
+                <td class="f">broker.keepalive</td>
+                <td class="t">number</td>
+                <td class="d">60</td>
+                <td>Ping interval seconds me. Allowed 5&ndash;3600.</td>
+              </tr>
+              <tr class="sub">
+                <td class="f">broker.cleanSession</td>
+                <td class="t">boolean</td>
+                <td class="d">true</td>
+                <td><code>true</code> = broker session yaad nahi rakhta. Simulator ke liye yahi theek hai.</td>
+              </tr>
+
+              <tr>
+                <td class="f">publish <span class="req">req</span></td>
+                <td class="t">object</td>
+                <td class="d">&mdash;</td>
+                <td>Kya bhejna hai aur kitni jaldi-jaldi.</td>
+              </tr>
+              <tr class="sub">
+                <td class="f">publish.topic <span class="req">req</span></td>
+                <td class="t">string</td>
+                <td class="d">&mdash;</td>
+                <td>MQTT topic; tokens allowed. Max 200 characters.</td>
+              </tr>
+              <tr class="sub">
+                <td class="f">publish.qos</td>
+                <td class="t">0 | 1 | 2</td>
+                <td class="d">0</td>
+                <td>Delivery guarantee. <code>0</code> fire-and-forget (fast, default) &middot; <code>1</code> kam se kam ek baar &middot; <code>2</code> theek ek baar (sabse dheema).</td>
+              </tr>
+              <tr class="sub">
+                <td class="f">publish.retain</td>
+                <td class="t">boolean</td>
+                <td class="d">false</td>
+                <td><code>true</code> par broker aakhri message rakh leta hai aur naye subscriber ko turant de deta hai.</td>
+              </tr>
+              <tr class="sub">
+                <td class="f">publish.intervalMs <span class="req">req</span></td>
+                <td class="t">number</td>
+                <td class="d">&mdash;</td>
+                <td>Do messages ke beech ka gap, milliseconds me. Allowed 100 &ndash; 86,400,000 (24 ghante). <code>2000</code> = har 2 second.</td>
+              </tr>
+              <tr class="sub">
+                <td class="f">publish.payloadTemplate <span class="req">req</span></td>
+                <td class="t">string</td>
+                <td class="d">&mdash;</td>
+                <td>Poora JSON template <em>ek string ke andar</em> &mdash; isliye file me <code>\n</code> aur <code>\"</code> escaped dikhte hain. Max 20,000 characters. UI me editing karna aasan hai.</td>
+              </tr>
+
+              <tr>
+                <td class="f">autoStart</td>
+                <td class="t">boolean</td>
+                <td class="d">false</td>
+                <td><code>true</code> par backend boot hote hi machine apne aap publish karne lagti hai.</td>
+              </tr>
+              <tr>
+                <td class="f">createdAt</td>
+                <td class="t">string</td>
+                <td class="d">auto</td>
+                <td>ISO timestamp, backend set karta hai.</td>
+              </tr>
+              <tr>
+                <td class="f">updatedAt</td>
+                <td class="t">string</td>
+                <td class="d">auto</td>
+                <td>ISO timestamp, har save par refresh hota hai.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <h3>Ek poori machine entry</h3>
+        <div class="block">
+          <button class="copy" type="button">Copy</button>
+          <pre class="code">{
+  "id": "d2c5ff1d-1b61-40ea-864f-4db64c2f20ef",
+  "name": "Airveda",
+  "description": "mobilise local",
+  "deviceId": "5985623058",
+  "deviceIdFormat": "numeric",
+  "broker": {
+    "url": "mqtt://localhost:1883",
+    "username": "airVeda",
+    "password": "Password@123",
+    "keepalive": 60,
+    "cleanSession": true
+  },
+  "publish": {
+    "topic": "device/airVeda/{{deviceId}}",
+    "qos": 0,
+    "retain": false,
+    "intervalMs": 2000,
+    "payloadTemplate": "{\n  \"deviceId\": \"{{deviceId}}\",\n  \"value\": \"{{int:0:100}}\"\n}"
+  },
+  "autoStart": true,
+  "createdAt": "2026-08-03T06:08:42.589Z",
+  "updatedAt": "2026-08-03T09:32:55.775Z"
+}</pre>
+        </div>
+      </section>
+
+      <!-- ============ GOTCHAS ============ -->
+      <section id="gotchas">
+        <h2><span class="n">12</span>Gotchas &mdash; jo baar-baar phansate hain</h2>
+
+        <div class="rules">
+          <div class="rule">
+            <span class="mark">!</span>
+            <p><strong><code>{{oneOf}}</code> aur <code>{{seq}}</code> hamesha string dete hain.</strong>
+            <code>"level": "{{oneOf:1|2|3}}"</code> se <code>"level": "2"</code> publish hoga.
+            Number chahiye to <code>{{int}}</code>, <code>{{counter}}</code> ya <code>{{range}}</code> use karo &mdash;
+            <code>{{range}}</code> numeric output ko apne aap number bana deta hai.</p>
+          </div>
+          <div class="rule">
+            <span class="mark">!</span>
+            <p><strong>Start / Restart par sab reset ho jata hai.</strong> <code>walk</code>,
+            <code>counter</code>, <code>seq</code> aur <code>tick</code> &mdash; sab shuru se. Running machine ki
+            config save karne par wo hot-restart hoti hai, to wahan bhi counters zero se chalte hain.
+            Sirf <code>{{sin}}</code> ghadi se chalta hai, isliye wo reset nahi hota.</p>
+          </div>
+          <div class="rule">
+            <span class="mark">!</span>
+            <p><strong><code>{{range}}</code> ki buckets chhoti se badi order me.</strong>
+            <code>*=…</code> hamesha aakhir me. Ulta likha to pehla bucket sab values kha jayega aur colour
+            kabhi badlega hi nahi.</p>
+          </div>
+          <div class="rule">
+            <span class="mark">!</span>
+            <p><strong><code>{{var:name}}</code> ka naam galat hua to <code>""</code> milta hai</strong> &mdash;
+            error nahi aata. Field khali dikhe to sabse pehle spelling check karo.</p>
+          </div>
+          <div class="rule">
+            <span class="mark">!</span>
+            <p><strong>Duplicate karne par identity badalti hai, template nahi.</strong> Har copy ko naya
+            <code>machineId</code>, naya <code>deviceId</code> aur apna client ID milta hai &mdash; broker, topic
+            aur payload template same rehte hain. Isiliye topic me <code>{{deviceId}}</code> likhna zaroori
+            hai, warna 50 copies ek hi topic par publish karengi.</p>
+          </div>
+          <div class="rule">
+            <span class="mark">!</span>
+            <p><strong><code>intervalMs</code> minimum 100 hai.</strong> Isse tez chahiye to ek hi machine ko
+            duplicate karke chala lo &mdash; 10 machines @ 100 ms = 100 messages/second.</p>
+          </div>
+          <div class="rule">
+            <span class="mark">!</span>
+            <p><strong>Save karne se pehle Preview dabao.</strong> Preview asli render chalata hai par
+            counters ko aage nahi badhata &mdash; invalid JSON ya galat token wahin pakda jata hai.</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============ SKELETON ============ -->
+      <section id="skeleton">
+        <h2><span class="n">13</span>Starter skeleton</h2>
+        <p>Agla JSON isse shuru karo &mdash; har common pattern ek-ek baar isme aa gaya hai. Jo nahi chahiye,
+        hata do.</p>
+        <div class="block">
+          <button class="copy" type="button">Copy</button>
+          <pre class="code">{
+  "deviceId": "{{deviceId}}",
+  "seq": "{{counter}}",
+  "timestamp": "{{iso}}",
+
+  "readings": {
+    "temperature": "{{walk:18:42:0.4}}",
+    "humidity": "{{walk:35:85:1.5}}",
+    "pressure": "{{float:0.9:1.4:3}}",
+    "vibration": "{{sin:0:10:60}}"
+  },
+
+  "battery": {
+    "percent": "{{var:batt:walk:5:100:0.4}}",
+    "status": "{{range:batt:20=CRITICAL|50=LOW|*=OK}}",
+    "color": "{{range:batt:20=#E14343|50=#E1CB43|*=#17AF35}}"
+  },
+
+  "state": "{{oneOf:RUNNING|IDLE|MAINTENANCE}}",
+  "online": "{{bool:0.95}}",
+  "firmware": "2.4.{{int:0:9}}",
+  "ip": "{{ip}}",
+  "msgId": "{{uuid}}"
+}</pre>
+        </div>
+        <p class="note">Topic: <code>sensors/{{deviceId}}/telemetry</code> &middot; Interval: <code>2000</code> ms &middot;
+        QoS <code>0</code>, retain <code>false</code>.</p>
+      </section>
+
+      <footer>
+        <span>MQTT Device Simulator</span>
+        <span>Tokens: backend/src/core/payload.generator.ts</span>
+        <span>Config: backend/src/machines/dto/machine.dto.ts</span>
+      </footer>
+
+    </main>
+  </div>
+</div>
+
+<script>
+  (function () {
+    // ---- theme toggle, kept in sync with the simulator UI ----
+    var tt = document.getElementById('tt');
+    tt.addEventListener('click', function () {
+      var next = document.documentElement.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
+      document.documentElement.setAttribute('data-theme', next);
+      try { localStorage.setItem('theme', next); } catch (e) { /* ignore */ }
+    });
+
+    // ---- syntax highlighting: keys first, then tokens, then numbers ----
+    document.querySelectorAll('pre.code').forEach(function (pre) {
+      if (pre.querySelector('.t-cmt')) {
+        // Block already carries hand-written comment spans — only tint the tokens.
+        pre.innerHTML = pre.innerHTML.replace(/\{\{[^{}\n]*\}\}/g, function (m) {
+          return '<span class="t-tok">' + m + '</span>';
+        });
+        return;
+      }
+      var html = pre.textContent
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;');
+      html = html.replace(/"((?:\\.|[^"\\\n])*)"(\s*:)/g, function (m, inner, colon) {
+        return '<span class="t-key">"' + inner + '"</span>' + colon;
+      });
+      html = html.replace(/\{\{[^{}\n]*\}\}/g, function (m) {
+        return '<span class="t-tok">' + m + '</span>';
+      });
+      html = html.replace(/(:\s*)(-?\d+(?:\.\d+)?|true|false|null)(?=[,\s\n}\]]|$)/g, function (m, lead, val) {
+        return lead + '<span class="t-num">' + val + '</span>';
+      });
+      pre.innerHTML = html;
+    });
+
+    // ---- copy buttons ----
+    document.querySelectorAll('.copy').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        var pre = btn.parentElement.querySelector('pre.code');
+        if (!pre) return;
+        navigator.clipboard.writeText(pre.textContent).then(function () {
+          var was = btn.textContent;
+          btn.textContent = 'Copied';
+          setTimeout(function () { btn.textContent = was; }, 1400);
+        });
+      });
+    });
+
+    // ---- token search ----
+    var q = document.getElementById('q');
+    var count = document.getElementById('count');
+    var entries = Array.prototype.slice.call(document.querySelectorAll('.entry'));
+    var total = entries.length;
+
+    entries.forEach(function (el) {
+      el.dataset.hay = ((el.dataset.k || '') + ' ' + el.textContent).toLowerCase();
+    });
+
+    function apply() {
+      var term = q.value.trim().toLowerCase();
+      var shown = 0;
+      entries.forEach(function (el) {
+        var hit = !term || el.dataset.hay.indexOf(term) !== -1;
+        el.style.display = hit ? '' : 'none';
+        if (hit) shown += 1;
+      });
+      document.querySelectorAll('section').forEach(function (sec) {
+        var list = sec.querySelector('.entries');
+        if (!list) return;
+        var any = Array.prototype.some.call(list.children, function (el) {
+          return el.style.display !== 'none';
+        });
+        sec.style.display = !term || any ? '' : 'none';
+      });
+      count.textContent = term ? shown + ' / ' + total + ' tokens' : total + ' tokens';
+    }
+
+    q.addEventListener('input', apply);
+    apply();
+  })();
+</script>
+</body>
+</html>

@@ -1,0 +1,126 @@
+# ---------------------------------------------
+# Dependencies
+# ---------------------------------------------
+node_modules/
+.pnp
+.pnp.js
+.yarn/cache
+.yarn/unplugged
+.yarn/build-state.yml
+.yarn/install-state.gz
+jspm_packages/
+
+# ---------------------------------------------
+# Build / compiled output
+# ---------------------------------------------
+dist/
+dist-ssr/
+build/
+out/
+.next/
+.nuxt/
+.turbo/
+.vite/
+*.tsbuildinfo
+
+# ---------------------------------------------
+# Environment / secrets
+# ---------------------------------------------
+.env
+.env.*
+!.env.example
+!.env.sample
+*.pem
+*.key
+*.crt
+*.p12
+secrets.json
+
+# ---------------------------------------------
+# Runtime data (MQTT simulator machine definitions, DBs, etc.)
+# ---------------------------------------------
+backend/data/
+*.sqlite
+*.sqlite3
+*.db
+pids/
+*.pid
+*.seed
+*.pid.lock
+
+# ---------------------------------------------
+# Logs
+# ---------------------------------------------
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+report.[0-9]*.[0-9]*.[0-9]*.[0-9]*.json
+
+# ---------------------------------------------
+# Tests / coverage
+# ---------------------------------------------
+coverage/
+.nyc_output/
+*.lcov
+test-results/
+playwright-report/
+
+# ---------------------------------------------
+# Caches
+# ---------------------------------------------
+.cache/
+.eslintcache
+.stylelintcache
+.npm/
+.parcel-cache/
+.temp/
+.tmp/
+tmp/
+
+# ---------------------------------------------
+# Editors / IDEs
+# ---------------------------------------------
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+.idea/
+.project
+.classpath
+.c9/
+*.launch
+.settings/
+*.sublime-workspace
+*.sublime-project
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# ---------------------------------------------
+# OS generated files
+# ---------------------------------------------
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# ---------------------------------------------
+# Misc
+# ---------------------------------------------
+*.local
+*.bak
+*.orig
+*.tgz
+.claude/
