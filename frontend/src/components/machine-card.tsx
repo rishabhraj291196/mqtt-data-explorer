@@ -1,6 +1,7 @@
 import { memo, useEffect, useState, type MouseEvent } from 'react'
 import {
   CopyIcon,
+  FolderInputIcon,
   PencilIcon,
   PlayIcon,
   PlugIcon,
@@ -37,6 +38,9 @@ interface MachineCardProps {
   onPublishOnce: (id: string) => void
   onTest: (id: string) => void
   onClone: (machine: Machine) => void
+  /** Hidden while there is only one workspace — nowhere to move it to. */
+  canMove: boolean
+  onMove: (machine: Machine) => void
   onDelete: (id: string) => void
 }
 
@@ -52,6 +56,8 @@ export const MachineCard = memo(function MachineCard({
   onPublishOnce,
   onTest,
   onClone,
+  canMove,
+  onMove,
   onDelete,
 }: MachineCardProps) {
   const [confirmDelete, setConfirmDelete] = useState(false)
@@ -144,6 +150,17 @@ export const MachineCard = memo(function MachineCard({
           >
             <CopyIcon />
           </Button>
+          {canMove && (
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              aria-label="Move to another workspace"
+              disabled={busy}
+              onClick={() => onMove(machine)}
+            >
+              <FolderInputIcon />
+            </Button>
+          )}
           <Button
             variant={confirmDelete ? 'destructive' : 'ghost'}
             size="icon-sm"

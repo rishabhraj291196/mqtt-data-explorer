@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Post } from '@nestjs/common';
+import { Body, Controller, Get, Post, UseGuards } from '@nestjs/common';
 import {
   PayloadGenerator,
   TOKEN_DOCS,
@@ -9,6 +9,10 @@ import {
   DEFAULT_BROKER_URL,
   SAMPLE_TEMPLATE,
 } from '../machines/machine.defaults';
+import {
+  ActiveWorkspace,
+  WorkspaceScopeGuard,
+} from '../workspaces/workspace.scope';
 import { SimulatorService } from './simulator.service';
 
 interface PreviewResult {
@@ -64,13 +68,16 @@ export class SimulatorController {
     return { ok: true, error: null, samples };
   }
 
+  /** "Start all" means all of *this* project — never the whole install. */
+  @UseGuards(WorkspaceScopeGuard)
   @Post('start-all')
-  startAll(): { started: number } {
-    return this.simulator.startAll();
+  startAll(@ActiveWorkspace() workspaceId: string): { started: number } {
+    return this.simulator.startAll(workspaceId);
   }
 
+  @UseGuards(WorkspaceScopeGuard)
   @Post('stop-all')
-  stopAll(): { stopped: number } {
-    return this.simulator.stopAll();
+  stopAll(@ActiveWorkspace() workspaceId: string): { stopped: number } {
+    return this.simulator.stopAll(workspaceId);
   }
 }

@@ -77,10 +77,38 @@ Other things the UI can do:
 - **Test broker** — connect/disconnect to verify credentials.
 - **Duplicate** — copy an existing machine up to 50 times in one go; each copy keeps
   the broker, topic and template but gets its own name, machine ID and client ID.
-- **Start all / Stop all** — run every machine at once.
+- **Start all / Stop all** — run every machine in the current workspace at once.
+- **Move** — hand a machine to another workspace without rebuilding it.
 - **Autostart** — bring a machine up automatically whenever the backend boots.
 
-Machines are saved to `backend/data/machines.json`, so they survive restarts.
+Machines are saved to `backend/data/machines.json` and workspaces to
+`backend/data/workspaces.json`, so both survive restarts.
+
+---
+
+## Workspaces
+
+One simulator, several projects. A **workspace** is a project boundary: every machine
+belongs to exactly one, and nothing about it is reachable from any other — not the list,
+not start/stop, not the live feed. Switch projects instead of deleting and re-creating
+the same fleet.
+
+Use the switcher in the header to change project, create a new one, or open
+**Workspace settings** to rename it, recolour it or delete it. The switcher shows each
+project's machine count and how many are running right now.
+
+- **Machines never cross over.** A machine id from another workspace reads as *not
+  found* on every verb — read, edit, delete, start, stop, clone, publish.
+- **The live feed is per project.** So is *Start all*, *Stop all* and *Clear feed*.
+- **Moving beats re-creating.** The move button on a card hands the machine over
+  keeping its id, device id and counters; a running machine does not even reconnect.
+- **Deleting a project deletes its machines**, after stopping them. The last remaining
+  workspace cannot be deleted — rename it instead.
+- **Autostart ignores workspaces.** Every project's autostart machines come up when the
+  backend boots, not just whichever one you happen to open.
+
+Existing installs need no migration: machines saved before workspaces existed are
+adopted into a **Default** workspace the first time the backend starts.
 
 ---
 
@@ -206,20 +234,31 @@ values also work.
 
 ## API
 
-Everything the UI does is available over HTTP (`http://localhost:3006/api`):
+Everything the UI does is available over HTTP (`http://localhost:3006/api`).
+
+Every machine, control and event route is **workspace-scoped**: send the workspace id as
+an `X-Workspace-Id` header (or, for `EventSource`, a `?workspaceId=` query param). No
+header is a `400`; an unknown one is a `404`, and so is any machine that lives in a
+different workspace. `GET /workspaces` is the one unscoped route — that is how you find
+the id in the first place.
 
 | Method | Path | Purpose |
 | --- | --- | --- |
+| `GET` | `/workspaces` | List projects with machine + running counts |
+| `POST` | `/workspaces` | Create `{ "name": "Factory A" }` |
+| `PATCH` | `/workspaces/:id` | Rename / recolour |
+| `DELETE` | `/workspaces/:id` | Delete it **and every machine in it** |
 | `GET` | `/machines` | List machines with live runtime state |
 | `GET` | `/machines/stats` | Counters only — small enough to poll |
 | `POST` | `/machines` | Create |
 | `PATCH` | `/machines/:id` | Update (running machines hot-restart) |
 | `DELETE` | `/machines/:id` | Delete |
 | `POST` | `/machines/:id/clone` | Duplicate `{ "count": 5 }` |
+| `POST` | `/machines/:id/move` | Hand it over `{ "workspaceId": "…" }` |
 | `POST` | `/machines/:id/start` · `/stop` · `/restart` | Runtime control |
 | `POST` | `/machines/:id/publish-once` | Send a single message |
 | `POST` | `/machines/:id/test-connection` | Verify broker + credentials |
-| `POST` | `/simulator/start-all` · `/stop-all` | Whole fleet |
+| `POST` | `/simulator/start-all` · `/stop-all` | Whole fleet — of this workspace |
 | `POST` | `/simulator/preview` | Render a template without publishing |
 | `GET` | `/simulator/tokens` | Token reference |
 | `GET` | `/events/stream` | SSE feed of every publish / status change |
@@ -228,8 +267,11 @@ Everything the UI does is available over HTTP (`http://localhost:3006/api`):
 Handy for scripting a test run:
 
 ```bash
-curl -X POST http://localhost:3006/api/simulator/start-all
-curl -N http://localhost:3006/api/events/stream
+API=http://localhost:3006/api
+WS=$(curl -s $API/workspaces | jq -r '.[0].id')
+
+curl -X POST -H "X-Workspace-Id: $WS" $API/simulator/start-all
+curl -N "$API/events/stream?workspaceId=$WS"
 ```
 
 ---

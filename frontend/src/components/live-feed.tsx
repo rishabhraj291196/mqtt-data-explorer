@@ -20,6 +20,8 @@ export interface MachineOption {
 }
 
 interface LiveFeedProps {
+  /** The open project — the stream carries nothing from any other one. */
+  workspaceId: string
   machines: MachineOption[]
   /** Machine id the feed is limited to; empty string means every machine. */
   machineFilter: string
@@ -27,6 +29,7 @@ interface LiveFeedProps {
 }
 
 export function LiveFeed({
+  workspaceId,
   machines,
   machineFilter,
   onMachineFilterChange,
@@ -34,7 +37,7 @@ export function LiveFeed({
   // Subscribing here rather than in App keeps message traffic off the cards.
   // The stream itself is filtered, so `events` is already only what we show.
   const { events, streamConnected, clear, setPaused: setStreamPaused } =
-    useEventStream(machineFilter)
+    useEventStream(workspaceId, machineFilter)
   const [paused, setPaused] = useState(false)
   const [expandAll, setExpandAll] = useState(false)
   const [overrides, setOverrides] = useState<ReadonlySet<string>>(new Set())
@@ -156,8 +159,8 @@ export function LiveFeed({
 
       <p className="text-[11px] text-muted-foreground">
         Showing the 10 most recent messages
-        {machineFilter ? ' from this machine' : ''}. Counters on each card stay
-        exact.
+        {machineFilter ? ' from this machine' : ' in this workspace'}. Counters
+        on each card stay exact.
       </p>
 
       <MessageDialog event={detail} onClose={() => setDetail(null)} />

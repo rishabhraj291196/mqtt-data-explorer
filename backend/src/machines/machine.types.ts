@@ -29,6 +29,8 @@ export type DeviceIdFormat = 'numeric' | 'alphanumeric' | 'custom';
 
 export interface Machine {
   id: string;
+  /** The project this machine lives in. It is never reachable from another. */
+  workspaceId: string;
   name: string;
   description?: string;
   /** The identity the device reports — exposed to templates as `{{deviceId}}`. */

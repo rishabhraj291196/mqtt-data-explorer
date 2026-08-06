@@ -157,6 +157,14 @@ export class UpdateMachineDto {
   autoStart?: boolean;
 }
 
+/** Body for handing a machine to another workspace. */
+export class MoveMachineDto {
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(64)
+  workspaceId!: string;
+}
+
 /** Body for cloning a machine into N copies. */
 export class CloneMachineDto {
   @IsOptional()

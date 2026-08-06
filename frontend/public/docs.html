@@ -1193,6 +1193,12 @@ device/airVeda/{{machineId}}        →   device/airVeda/d2c5ff1d-1b61-40ea-…<
                 <td>Internal UUID, backend banata hai. Templates me <code>{{machineId}}</code> se milta hai. Kabhi khud mat likhna.</td>
               </tr>
               <tr>
+                <td class="f">workspaceId</td>
+                <td class="t">string</td>
+                <td class="d">auto</td>
+                <td>Kis project ki machine hai. API me body se nahi, <code>X-Workspace-Id</code> header se aata hai &mdash; aur doosre workspace se ye machine bilkul dikhti hi nahi (404). Purani machines pehli baar boot par <b>Default</b> workspace me chali jaati hain.</td>
+              </tr>
+              <tr>
                 <td class="f">name <span class="req">req</span></td>
                 <td class="t">string</td>
                 <td class="d">&mdash;</td>
@@ -1324,6 +1330,7 @@ device/airVeda/{{machineId}}        →   device/airVeda/d2c5ff1d-1b61-40ea-…<
           <button class="copy" type="button">Copy</button>
           <pre class="code">{
   "id": "d2c5ff1d-1b61-40ea-864f-4db64c2f20ef",
+  "workspaceId": "0119644b-0d32-47e8-9916-39f365606753",
   "name": "Airveda",
   "description": "mobilise local",
   "deviceId": "5985623058",
@@ -1395,6 +1402,20 @@ device/airVeda/{{machineId}}        →   device/airVeda/d2c5ff1d-1b61-40ea-…<
             <span class="mark">!</span>
             <p><strong>Save karne se pehle Preview dabao.</strong> Preview asli render chalata hai par
             counters ko aage nahi badhata &mdash; invalid JSON ya galat token wahin pakda jata hai.</p>
+          </div>
+          <div class="rule">
+            <span class="mark">!</span>
+            <p><strong>Machine gayab? Workspace check karo.</strong> Har machine sirf apne workspace me
+            dikhti hai &mdash; list, live feed, <em>Start all</em> aur <em>Stop all</em>, sab us ek project tak
+            hi seemit hain. Header wale switcher se project badlo. Machine galat project me ban gayi ho to
+            card ka <em>move</em> button use karo &mdash; delete karke dobara banane ki zaroorat nahi, id,
+            deviceId aur counters wahi rehte hain.</p>
+          </div>
+          <div class="rule">
+            <span class="mark">!</span>
+            <p><strong>Workspace delete karne par uski saari machines delete ho jaati hain.</strong> Jo
+            bachani hai unhe pehle doosre workspace me move kar lo. Aakhri bacha hua workspace delete nahi
+            hota &mdash; use sirf rename kiya ja sakta hai.</p>
           </div>
         </div>
       </section>

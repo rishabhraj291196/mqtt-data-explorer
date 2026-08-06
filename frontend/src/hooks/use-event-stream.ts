@@ -25,23 +25,26 @@ const withId = (event: SimEvent): FeedEvent => ({
 const FLUSH_MS = 300
 
 /**
+ * @param workspaceId The project to listen to. The stream itself is scoped
+ *   server-side, so another project's traffic never reaches this browser.
  * @param machineId Keep only this machine's events; empty string keeps every
  *   machine. Filtering here rather than at render time matters: the buffer holds
  *   10 events in total, so a busy fleet would otherwise crowd one machine's
  *   messages out before they could be filtered.
  */
-export function useEventStream(machineId = '') {
+export function useEventStream(workspaceId: string, machineId = '') {
   const [events, setEvents] = useState<FeedEvent[]>([])
   const [streamConnected, setStreamConnected] = useState(false)
-  const [renderedFilter, setRenderedFilter] = useState(machineId)
+  const [renderedFilter, setRenderedFilter] = useState(`${workspaceId}|${machineId}`)
   const pausedRef = useRef(false)
   const inboxRef = useRef<FeedEvent[]>([])
   const filterRef = useRef(machineId)
 
-  // Switching machine empties the buffer while rendering, so the previous
-  // machine's rows never paint under the new filter.
-  if (renderedFilter !== machineId) {
-    setRenderedFilter(machineId)
+  // Switching machine — or project — empties the buffer while rendering, so
+  // the previous rows never paint under the new filter.
+  const filterKey = `${workspaceId}|${machineId}`
+  if (renderedFilter !== filterKey) {
+    setRenderedFilter(filterKey)
     setEvents([])
   }
 
@@ -58,10 +61,11 @@ export function useEventStream(machineId = '') {
   }, [])
 
   // Point the stream at the new machine and backfill from the server's own
-  // history — the SSE connection below is deliberately left alone.
+  // history — the SSE connection below is left alone unless the project changed.
   useEffect(() => {
     filterRef.current = machineId
     inboxRef.current = []
+    if (!workspaceId) return
 
     let cancelled = false
     void api
@@ -80,10 +84,11 @@ export function useEventStream(machineId = '') {
     return () => {
       cancelled = true
     }
-  }, [machineId])
+  }, [workspaceId, machineId])
 
   useEffect(() => {
-    const source = new EventSource(api.streamUrl)
+    if (!workspaceId) return
+    const source = new EventSource(api.streamUrl(workspaceId))
     source.onopen = () => setStreamConnected(true)
     source.onerror = () => setStreamConnected(false)
     source.onmessage = (message: MessageEvent<string>) => {
@@ -104,8 +109,11 @@ export function useEventStream(machineId = '') {
       if (inbox.length > EVENT_BUFFER) inbox.splice(0, inbox.length - EVENT_BUFFER)
     }
 
-    return () => source.close()
-  }, [])
+    return () => {
+      setStreamConnected(false)
+      source.close()
+    }
+  }, [workspaceId])
 
   const clear = useCallback(async () => {
     setEvents([])

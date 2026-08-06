@@ -6,19 +6,33 @@ import type {
   PreviewResponse,
   SimEvent,
   TokensResponse,
+  Workspace,
+  WorkspaceInput,
 } from './types'
 
 const BASE = import.meta.env.VITE_API_URL ?? '/api'
 
 export class ApiError extends Error {}
 
+/**
+ * The workspace every machine call is scoped to. Kept here rather than
+ * threaded through each call site so no request can accidentally go out
+ * unscoped — the backend rejects one that does.
+ */
+let workspaceId = ''
+
+export function setActiveWorkspaceId(id: string): void {
+  workspaceId = id
+}
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
+  const headers: Record<string, string> = {}
+  if (init?.body) headers['Content-Type'] = 'application/json'
+  if (workspaceId) headers['X-Workspace-Id'] = workspaceId
+
   let response: Response
   try {
-    response = await fetch(`${BASE}${path}`, {
-      headers: init?.body ? { 'Content-Type': 'application/json' } : undefined,
-      ...init,
-    })
+    response = await fetch(`${BASE}${path}`, { ...init, headers })
   } catch {
     throw new ApiError(
       'Cannot reach the backend. Is it running on port 3006? (npm run start:dev)',
@@ -43,6 +57,26 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 }
 
 export const api = {
+  listWorkspaces: () => request<Workspace[]>('/workspaces'),
+
+  createWorkspace: (input: WorkspaceInput) =>
+    request<Workspace>('/workspaces', {
+      method: 'POST',
+      body: JSON.stringify(input),
+    }),
+
+  updateWorkspace: (id: string, input: WorkspaceInput) =>
+    request<Workspace>(`/workspaces/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(input),
+    }),
+
+  /** Deletes the project and every machine in it. */
+  deleteWorkspace: (id: string) =>
+    request<{ ok: true; machinesDeleted: number }>(`/workspaces/${id}`, {
+      method: 'DELETE',
+    }),
+
   listMachines: () => request<Machine[]>('/machines'),
 
   /** Tiny counters-only snapshot, safe to poll. */
@@ -69,6 +103,13 @@ export const api = {
     request<Machine[]>(`/machines/${id}/clone`, {
       method: 'POST',
       body: JSON.stringify({ count }),
+    }),
+
+  /** Hands a machine to another project instead of re-creating it there. */
+  moveMachine: (id: string, targetWorkspaceId: string) =>
+    request<Machine>(`/machines/${id}/move`, {
+      method: 'POST',
+      body: JSON.stringify({ workspaceId: targetWorkspaceId }),
     }),
 
   start: (id: string) =>
@@ -110,5 +151,7 @@ export const api = {
 
   clearEvents: () => request<{ ok: true }>('/events/recent', { method: 'DELETE' }),
 
-  streamUrl: `${BASE}/events/stream`,
+  /** EventSource cannot set headers, so the workspace rides in the query. */
+  streamUrl: (id: string) =>
+    `${BASE}/events/stream?workspaceId=${encodeURIComponent(id)}`,
 }

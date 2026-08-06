@@ -7,6 +7,7 @@ import { EventEmitterModule } from '@nestjs/event-emitter';
 import { CoreModule } from './core/core.module';
 import { MachinesModule } from './machines/machines.module';
 import { SimulatorModule } from './simulator/simulator.module';
+import { WorkspacesModule } from './workspaces/workspaces.module';
 
 @Module({
   imports: [
@@ -14,6 +15,7 @@ import { SimulatorModule } from './simulator/simulator.module';
     ScheduleModule.forRoot(),
     EventEmitterModule.forRoot(),
     CoreModule,
+    WorkspacesModule,
     MachinesModule,
     SimulatorModule,
   ],

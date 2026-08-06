@@ -17,14 +17,30 @@ function sameStats(machine: Machine, stats: MachineStats): boolean {
   )
 }
 
-export function useSimulator() {
+/**
+ * @param workspaceId The project to show. Every request is scoped to it by the
+ *   API client, so this hook only ever holds one project's machines. An empty
+ *   string means the workspace list has not resolved yet — nothing is fetched.
+ */
+export function useSimulator(workspaceId: string) {
   const [machines, setMachines] = useState<Machine[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [busyId, setBusyId] = useState<string | null>(null)
+  const [renderedWorkspace, setRenderedWorkspace] = useState(workspaceId)
+
+  // Switching project empties the list while rendering, so the previous
+  // project's cards never paint for a frame under the new one.
+  if (renderedWorkspace !== workspaceId) {
+    setRenderedWorkspace(workspaceId)
+    setMachines([])
+    setLoading(true)
+    setError(null)
+  }
 
   /** Full reload — only after something structural changes. */
   const refresh = useCallback(async () => {
+    if (!workspaceId) return
     try {
       setMachines(await api.listMachines())
       setError(null)
@@ -33,7 +49,7 @@ export function useSimulator() {
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [workspaceId])
 
   /**
    * Counters tick constantly, so they are polled separately from the (much
@@ -41,6 +57,7 @@ export function useSimulator() {
    * old object identity, so their memoised card never re-renders.
    */
   const pollStats = useCallback(async () => {
+    if (!workspaceId) return
     let stats: MachineStats[]
     try {
       stats = await api.machineStats()
@@ -66,7 +83,7 @@ export function useSimulator() {
       })
       return changed ? next : prev
     })
-  }, [refresh])
+  }, [refresh, workspaceId])
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -136,6 +153,13 @@ export function useSimulator() {
           id,
           () => api.cloneMachine(id, count),
           (list) => `Created ${list.length} ${list.length === 1 ? 'copy' : 'copies'}`,
+        ),
+      /** Sends it to another project; it leaves this list on the next refresh. */
+      move: (id: string, targetWorkspaceId: string, targetName: string) =>
+        run(
+          id,
+          () => api.moveMachine(id, targetWorkspaceId),
+          (m) => `${m.name} moved to ${targetName}`,
         ),
     }),
     [run],

@@ -7,6 +7,8 @@ export type SimEventType = 'message' | 'status' | 'error' | 'machine';
 export interface SimEvent {
   type: SimEventType;
   at: string;
+  /** The project this happened in — the feed never mixes two of them. */
+  workspaceId: string;
   machineId?: string;
   machineName?: string;
   /** message events */
@@ -44,11 +46,22 @@ export class EventsService {
     return full;
   }
 
-  getRecent(limit = LOG_LIMIT): SimEvent[] {
-    return this.recent.slice(-limit);
+  /**
+   * The history is one shared ring buffer, so it is filtered on the way out —
+   * a workspace only ever sees what its own machines did.
+   */
+  getRecent(workspaceId: string, limit = LOG_LIMIT): SimEvent[] {
+    return this.recent
+      .filter((event) => event.workspaceId === workspaceId)
+      .slice(-limit);
   }
 
-  clear(): void {
+  /** Clearing the feed in one project leaves the others untouched. */
+  clear(workspaceId: string): void {
+    const kept = this.recent.filter(
+      (event) => event.workspaceId !== workspaceId,
+    );
     this.recent.length = 0;
+    this.recent.push(...kept);
   }
 }

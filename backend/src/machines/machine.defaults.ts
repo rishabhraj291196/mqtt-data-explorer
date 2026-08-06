@@ -34,9 +34,14 @@ export const SAMPLE_TEMPLATE = `{
   "timestamp": "{{iso}}"
 }`;
 
-export function buildSeedMachine(id: string, now: string): Machine {
+export function buildSeedMachine(
+  id: string,
+  workspaceId: string,
+  now: string,
+): Machine {
   return {
     id,
+    workspaceId,
     name: 'Demo Sensor 01',
     description:
       'Sample machine — edit the broker, topic and JSON template, then hit Start.',

@@ -42,8 +42,38 @@ export interface MachineStats {
   lastError: string | null
 }
 
+export const WORKSPACE_COLORS = [
+  'sky',
+  'violet',
+  'emerald',
+  'amber',
+  'rose',
+  'slate',
+] as const
+
+export type WorkspaceColor = (typeof WORKSPACE_COLORS)[number]
+
+/** A project. Machines belong to exactly one and are invisible from the rest. */
+export interface Workspace {
+  id: string
+  name: string
+  description?: string
+  color: WorkspaceColor
+  machineCount: number
+  runningCount: number
+  createdAt: string
+  updatedAt: string
+}
+
+export interface WorkspaceInput {
+  name: string
+  description?: string
+  color?: WorkspaceColor
+}
+
 export interface Machine {
   id: string
+  workspaceId: string
   name: string
   description?: string
   deviceId: string
@@ -71,6 +101,7 @@ export type SimEventType = 'message' | 'status' | 'error' | 'machine' | 'ping'
 export interface SimEvent {
   type: SimEventType
   at: string
+  workspaceId?: string
   machineId?: string
   machineName?: string
   topic?: string
