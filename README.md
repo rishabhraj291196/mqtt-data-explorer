@@ -1,36 +1,120 @@
-# MQTT Device Simulator
+# MQTT Device Simulator — fake IoT devices that publish real MQTT
 
-Fake IoT machines that publish real MQTT traffic, so you can test your own software
+Open-source MQTT device simulator and test data generator. Spin up virtual IoT machines
+that connect to **any** MQTT broker — Mosquitto, EMQX, HiveMQ, AWS IoT, your own — and
+publish realistic JSON telemetry on a timer, so you can build and test the software
 without owning a single device.
 
-Create a "machine" in the UI, point it at a broker, paste the JSON shape you want, and
-it publishes on a timer exactly like a physical device would — smooth sensor drift,
-incrementing counters, rotating status values, the lot.
+![The dashboard: machine cards with live counters, and the live feed on the right](docs/screenshots/dashboard.png)
+
+## What it is
+
+A web app with two parts: a **NestJS** backend that holds the MQTT clients and does the
+publishing, and a **React** UI to configure it. You describe a device — broker URL,
+topic, the JSON shape you want, how often — and it behaves like the real thing: smooth
+sensor drift, incrementing counters, rotating status values, GPS that actually moves.
+
+Nothing is mocked at the protocol level. It is a real MQTT client on a real connection,
+so whatever subscribes to your broker cannot tell the difference.
+
+## Why you'd want one
+
+- **The hardware isn't ready.** Build the dashboard, the ingest pipeline and the alerting
+  before a single sensor ships.
+- **You need data that looks real.** Random numbers make charts look wrong. `{{walk}}`
+  drifts like a temperature probe; `{{sin}}` cycles like a daily load curve.
+- **You need a *fleet*, not one device.** Duplicate a machine 50 times in one click —
+  each copy gets its own device ID and MQTT client ID — and watch your consumer cope.
+- **You need to reproduce a bug.** Save the exact payload shape and rate that broke
+  things, and replay it whenever you want.
+- **You need to demo without a lab.** A laptop and a broker is the whole setup.
+
+## Who it's for
+
+Backend and IoT developers writing MQTT consumers · dashboard and frontend teams who need
+a live data source · QA testing throughput, QoS and reconnect behaviour · anyone giving an
+IoT demo without hauling hardware · students learning MQTT.
+
+## Quickstart
+
+Two terminals, no config:
+
+```bash
+git clone https://github.com/rishabhraj291196/mqtt-data-explorer.git
+cd mqtt-data-explorer
+
+# 1. API + MQTT engine  → http://localhost:3006/api
+cd backend && npm install && npm run start:dev
+
+# 2. UI                 → http://localhost:5173
+cd frontend && npm install && npm run dev
+```
+
+Open <http://localhost:5173>. No broker handy? One line:
+
+```bash
+docker run -d --name emqx -p 1883:1883 -p 8083:8083 -p 18083:18083 emqx/emqx:latest
+```
+
+## How it works
+
+```mermaid
+flowchart LR
+    A["Machine config<br/>topic + JSON template + interval"] --> B["Simulator engine<br/>(NestJS + mqtt.js)"]
+    B -->|publishes on a timer| C[("Your MQTT broker")]
+    C --> D["Your app, dashboard<br/>or ingest pipeline"]
+    B -.->|live feed over SSE| E["The UI"]
+```
+
+Each machine is one real MQTT client. The engine renders your template — replacing
+`{{token}}` placeholders with fresh values every tick — and publishes it at the interval
+you set. Configs live in a JSON file on disk, so they survive restarts.
+
+## Features at a glance
+
+| | |
+| --- | --- |
+| **Any broker** | `mqtt://` · `mqtts://` · `ws://` · `wss://`, with username/password, client ID, keep-alive and clean-session control |
+| **Realistic data** | 25+ tokens: smooth drift, sine waves, counters, sequences, weighted booleans, UUIDs, timestamps, GPS, MAC/IP |
+| **Linked values** | `{{var}}` generates once and reuses everywhere; `{{range}}` derives a colour or label from that same number |
+| **Fleets** | Duplicate a machine up to 50× — each copy gets its own device ID and client ID |
+| **Workspaces** | Separate projects that cannot see each other's machines |
+| **Live feed** | Every publish streamed to the browser over SSE, pretty-printed and filterable |
+| **Preview before saving** | Render three sample messages without publishing anything |
+| **Full REST API** | Everything the UI does is scriptable |
+
+**Workspaces** keep unrelated projects apart. Each one has its own machines, its own live
+feed and its own *Start all* — nothing in one project can see or touch another's:
+
+![The workspace switcher, showing machine and running counts per project](docs/screenshots/workspaces.png)
+
+Describe a device once — broker, identity, topic, JSON, rate — and **Preview** the exact
+messages before you save:
+
+![The new-machine dialog: name, device ID, broker URL and credentials](docs/screenshots/new-machine.png)
+
+Watch every message land in real time, expand any row into colour-coded JSON, or pin the
+feed to a single machine:
+
+![The live feed streaming JSON payloads with topic and timestamp](docs/screenshots/live-feed.png)
+
+---
+
+## Project layout
 
 - **backend/** — NestJS API + the MQTT publishing engine
 - **frontend/** — React (Vite + Tailwind + shadcn) configuration UI
 
 ---
 
-## Running it
+## Setup in detail
 
-Two terminals:
-
-```bash
-# 1. API + MQTT engine  → http://localhost:3006/api
-cd backend
-npm install
-npm run start:dev
-
-# 2. UI                 → http://localhost:5173
-cd frontend
-npm install
-npm run dev
-```
+**Requirements:** Node 20+ and any reachable MQTT broker.
 
 The UI proxies `/api` to `http://localhost:3006`, so nothing else needs configuring.
 Change the port in `backend/.env` (`PORT`) and in `frontend/vite.config.ts`
-(`API_TARGET`) if 3006 is taken.
+(`API_TARGET`) if 3006 is taken. Copy `backend/.env.example` to `backend/.env` to start
+from the documented defaults.
 
 ### Which broker?
 
@@ -44,12 +128,6 @@ Anything reachable works — set it per machine in the UI:
 | TLS | `mqtts://your-broker:8883` |
 
 `MQTT_DEFAULT_URL` in `backend/.env` pre-fills the "new machine" form.
-
-Quick local broker with Docker:
-
-```bash
-docker run -d --name emqx -p 1883:1883 -p 8083:8083 -p 18083:18083 emqx/emqx:latest
-```
 
 ---
 

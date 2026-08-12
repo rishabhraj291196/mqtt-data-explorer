@@ -3,6 +3,7 @@ import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,
   DropdownMenuContent,
+  DropdownMenuGroup,
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
@@ -50,31 +51,34 @@ export function WorkspaceSwitcher({
         <ChevronsUpDownIcon className="size-3.5 shrink-0 text-muted-foreground" />
       </DropdownMenuTrigger>
       <DropdownMenuContent className="w-72" align="start">
-        <DropdownMenuLabel>Workspaces</DropdownMenuLabel>
-        {workspaces.map((workspace) => (
-          <DropdownMenuItem
-            key={workspace.id}
-            className="gap-2"
-            onClick={() => onSelect(workspace.id)}
-          >
-            <span
-              className={cn('size-2.5 shrink-0 rounded-full', WORKSPACE_DOT[workspace.color])}
-              aria-hidden
-            />
-            <span className="min-w-0 flex-1">
-              <span className="block truncate">{workspace.name}</span>
-              <span className="block text-xs text-muted-foreground">
-                {workspace.machineCount === 0
-                  ? 'no machines'
-                  : `${workspace.machineCount} machine${workspace.machineCount === 1 ? '' : 's'}`}
-                {workspace.runningCount > 0 && ` · ${workspace.runningCount} running`}
+        {/* GroupLabel only reads its heading role from a surrounding Group. */}
+        <DropdownMenuGroup>
+          <DropdownMenuLabel>Workspaces</DropdownMenuLabel>
+          {workspaces.map((workspace) => (
+            <DropdownMenuItem
+              key={workspace.id}
+              className="gap-2"
+              onClick={() => onSelect(workspace.id)}
+            >
+              <span
+                className={cn('size-2.5 shrink-0 rounded-full', WORKSPACE_DOT[workspace.color])}
+                aria-hidden
+              />
+              <span className="min-w-0 flex-1">
+                <span className="block truncate">{workspace.name}</span>
+                <span className="block text-xs text-muted-foreground">
+                  {workspace.machineCount === 0
+                    ? 'no machines'
+                    : `${workspace.machineCount} machine${workspace.machineCount === 1 ? '' : 's'}`}
+                  {workspace.runningCount > 0 && ` · ${workspace.runningCount} running`}
+                </span>
               </span>
-            </span>
-            {workspace.id === active?.id && (
-              <CheckIcon className="size-4 shrink-0 text-primary" />
-            )}
-          </DropdownMenuItem>
-        ))}
+              {workspace.id === active?.id && (
+                <CheckIcon className="size-4 shrink-0 text-primary" />
+              )}
+            </DropdownMenuItem>
+          ))}
+        </DropdownMenuGroup>
 
         <DropdownMenuSeparator />
         <DropdownMenuItem className="gap-2" onClick={onCreate}>

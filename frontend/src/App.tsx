@@ -156,6 +156,7 @@ function App() {
           <Button
             variant="ghost"
             size="sm"
+            nativeButton={false}
             render={<a href="/docs.html" target="_blank" rel="noreferrer" />}
           >
             <BookOpenIcon />
